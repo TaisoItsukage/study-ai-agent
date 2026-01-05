@@ -12,6 +12,32 @@ import Link from "next/link";
 
 const QUESTIONS_PER_SESSION = 10;
 
+// シャッフルされた選択肢情報を保持する型
+type ShuffledQuestion = {
+  question: Question;
+  shuffledOptions: string[];
+  shuffledCorrectIndex: number;
+};
+
+// 選択肢をシャッフルして新しい正解インデックスを計算する関数
+function shuffleOptions(question: Question): ShuffledQuestion {
+  const indices = question.options.map((_, i) => i);
+  // Fisher-Yatesシャッフル
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  
+  const shuffledOptions = indices.map(i => question.options[i]);
+  const shuffledCorrectIndex = indices.indexOf(question.correctIndex);
+  
+  return {
+    question,
+    shuffledOptions,
+    shuffledCorrectIndex,
+  };
+}
+
 export default function QuizPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -19,7 +45,9 @@ export default function QuizPage() {
   const genreId = params.genreId as string;
   const mode = searchParams.get("mode");
 
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [shuffledQuestions, setShuffledQuestions] = useState<
+    ShuffledQuestion[]
+  >([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -53,7 +81,10 @@ export default function QuizPage() {
       selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
     }
 
-    setQuestions(selectedQuestions);
+    // 各問題の選択肢をシャッフル
+    const shuffled = selectedQuestions.map((q) => shuffleOptions(q));
+
+    setShuffledQuestions(shuffled);
     setCurrentIndex(0);
     setSelectedIndex(null);
     setIsRevealed(false);
@@ -83,7 +114,7 @@ export default function QuizPage() {
     );
   }
 
-  if (isLoading || questions.length === 0) {
+  if (isLoading || shuffledQuestions.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
@@ -94,8 +125,9 @@ export default function QuizPage() {
     );
   }
 
-  const currentQuestion = questions[currentIndex];
-  const isLastQuestion = currentIndex === questions.length - 1;
+  const currentShuffled = shuffledQuestions[currentIndex];
+  const currentQuestion = currentShuffled.question;
+  const isLastQuestion = currentIndex === shuffledQuestions.length - 1;
 
   const handleSelect = (index: number) => {
     if (isRevealed) return;
@@ -105,7 +137,7 @@ export default function QuizPage() {
   const handleConfirm = () => {
     if (selectedIndex === null) return;
 
-    const isCorrect = selectedIndex === currentQuestion.correctIndex;
+    const isCorrect = selectedIndex === currentShuffled.shuffledCorrectIndex;
     setIsRevealed(true);
 
     saveQuestionResult(genreId, currentQuestion.id, isCorrect);
@@ -121,7 +153,7 @@ export default function QuizPage() {
       sessionStorage.setItem(
         `quiz-result-${genreId}`,
         JSON.stringify({
-          total: questions.length,
+          total: shuffledQuestions.length,
           correct: correctCount,
           answers: answers,
         })
@@ -149,7 +181,10 @@ export default function QuizPage() {
           </span>
         </div>
 
-        <ProgressBar current={currentIndex + 1} total={questions.length} />
+        <ProgressBar
+          current={currentIndex + 1}
+          total={shuffledQuestions.length}
+        />
 
         <div className="mt-8 rounded-xl bg-white p-6 shadow-sm dark:bg-zinc-900">
           <h2 className="mb-6 text-lg font-medium leading-relaxed text-zinc-900 dark:text-zinc-100">
@@ -157,13 +192,13 @@ export default function QuizPage() {
           </h2>
 
           <div className="space-y-3">
-            {currentQuestion.options.map((option, index) => (
+            {currentShuffled.shuffledOptions.map((option, index) => (
               <OptionButton
                 key={index}
                 index={index}
                 text={option}
                 isSelected={selectedIndex === index}
-                isCorrect={index === currentQuestion.correctIndex}
+                isCorrect={index === currentShuffled.shuffledCorrectIndex}
                 isRevealed={isRevealed}
                 onClick={() => handleSelect(index)}
                 disabled={isRevealed}
@@ -174,7 +209,9 @@ export default function QuizPage() {
           {isRevealed && (
             <div className="mt-6">
               <Explanation
-                isCorrect={selectedIndex === currentQuestion.correctIndex}
+                isCorrect={
+                  selectedIndex === currentShuffled.shuffledCorrectIndex
+                }
                 explanation={currentQuestion.explanation}
               />
             </div>

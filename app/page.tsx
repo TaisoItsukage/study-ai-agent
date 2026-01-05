@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { GenreCard } from "@/components/GenreCard";
 import { genres } from "@/data/genres";
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { getTotalProgress } from "@/lib/storage";
 
 export default function Home() {
@@ -11,12 +11,15 @@ export default function Home() {
   const totalQuestions = genres.reduce((sum, g) => sum + g.questions.length, 0);
 
   useEffect(() => {
-    setTotalProgress(getTotalProgress());
+    startTransition(() => {
+      setTotalProgress(getTotalProgress());
+    });
   }, []);
 
-  const overallPercent = totalQuestions > 0
-    ? Math.round((totalProgress.correct / totalQuestions) * 100)
-    : 0;
+  const overallPercent =
+    totalQuestions > 0
+      ? Math.round((totalProgress.correct / totalQuestions) * 100)
+      : 0;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

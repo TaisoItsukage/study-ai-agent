@@ -115,15 +115,15 @@ export default function QuizPage() {
 
   const handleNext = () => {
     if (isLastQuestion) {
-      const correctCount = [...answers, { isCorrect: selectedIndex === currentQuestion.correctIndex }]
-        .filter((a) => a.isCorrect).length;
+      // answersには既にhandleConfirmで最後の回答が追加されているのでそのまま使う
+      const correctCount = answers.filter((a) => a.isCorrect).length;
 
       sessionStorage.setItem(
         `quiz-result-${genreId}`,
         JSON.stringify({
           total: questions.length,
           correct: correctCount,
-          answers: [...answers, { questionId: currentQuestion.id, isCorrect: selectedIndex === currentQuestion.correctIndex }],
+          answers: answers,
         })
       );
       router.push(`/genres/${genreId}/results`);

@@ -1,9 +1,9 @@
 "use client";
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { getGenreById, getRandomQuestions } from "@/data/genres";
-import { Question } from "@/data/types";
+import { Question, Genre } from "@/data/types";
 import { ProgressBar } from "@/components/ProgressBar";
 import { OptionButton } from "@/components/OptionButton";
 import { Explanation } from "@/components/Explanation";
@@ -27,10 +27,10 @@ function shuffleOptions(question: Question): ShuffledQuestion {
     const j = Math.floor(Math.random() * (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
-  
-  const shuffledOptions = indices.map(i => question.options[i]);
+
+  const shuffledOptions = indices.map((i) => question.options[i]);
   const shuffledCorrectIndex = indices.indexOf(question.correctIndex);
-  
+
   return {
     question,
     shuffledOptions,
@@ -38,63 +38,43 @@ function shuffleOptions(question: Question): ShuffledQuestion {
   };
 }
 
+// 初期クイズデータを生成する関数
+function createInitialQuiz(
+  genre: Genre,
+  genreId: string,
+  mode: string | null
+): ShuffledQuestion[] {
+  let selectedQuestions: Question[];
+
+  if (mode === "retry") {
+    const progress = getGenreProgress(genreId);
+    const wrongQuestionIds = Object.entries(progress.answeredQuestions)
+      .filter(([, isCorrect]) => !isCorrect)
+      .map(([id]) => id);
+
+    const wrongQuestions = genre.questions.filter((q) =>
+      wrongQuestionIds.includes(q.id)
+    );
+
+    if (wrongQuestions.length === 0) {
+      selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
+    } else {
+      const shuffled = [...wrongQuestions].sort(() => Math.random() - 0.5);
+      selectedQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
+    }
+  } else {
+    selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
+  }
+
+  return selectedQuestions.map((q) => shuffleOptions(q));
+}
+
 export default function QuizPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const genreId = params.genreId as string;
   const mode = searchParams.get("mode");
-
-  const [shuffledQuestions, setShuffledQuestions] = useState<
-    ShuffledQuestion[]
-  >([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [isRevealed, setIsRevealed] = useState(false);
-  const [answers, setAnswers] = useState<{ questionId: string; isCorrect: boolean }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
   const genre = getGenreById(genreId);
-
-  const initQuiz = useCallback(() => {
-    if (!genre) return;
-
-    let selectedQuestions: Question[];
-
-    if (mode === "retry") {
-      const progress = getGenreProgress(genreId);
-      const wrongQuestionIds = Object.entries(progress.answeredQuestions)
-        .filter(([, isCorrect]) => !isCorrect)
-        .map(([id]) => id);
-
-      const wrongQuestions = genre.questions.filter((q) =>
-        wrongQuestionIds.includes(q.id)
-      );
-
-      if (wrongQuestions.length === 0) {
-        selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
-      } else {
-        const shuffled = [...wrongQuestions].sort(() => Math.random() - 0.5);
-        selectedQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
-      }
-    } else {
-      selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
-    }
-
-    // 各問題の選択肢をシャッフル
-    const shuffled = selectedQuestions.map((q) => shuffleOptions(q));
-
-    setShuffledQuestions(shuffled);
-    setCurrentIndex(0);
-    setSelectedIndex(null);
-    setIsRevealed(false);
-    setAnswers([]);
-    setIsLoading(false);
-  }, [genre, genreId, mode]);
-
-  useEffect(() => {
-    initQuiz();
-  }, [initQuiz]);
 
   if (!genre) {
     return (
@@ -114,7 +94,40 @@ export default function QuizPage() {
     );
   }
 
-  if (isLoading || shuffledQuestions.length === 0) {
+  // keyを使ってgenreIdやmodeが変わった時にコンポーネントを再マウント
+  return (
+    <QuizContent
+      key={`${genreId}-${mode}`}
+      genre={genre}
+      genreId={genreId}
+      mode={mode}
+    />
+  );
+}
+
+function QuizContent({
+  genre,
+  genreId,
+  mode,
+}: {
+  genre: Genre;
+  genreId: string;
+  mode: string | null;
+}) {
+  const router = useRouter();
+
+  // useStateの遅延初期化で初期クイズデータを生成
+  const [shuffledQuestions] = useState<ShuffledQuestion[]>(() =>
+    createInitialQuiz(genre, genreId, mode)
+  );
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [answers, setAnswers] = useState<
+    { questionId: string; isCorrect: boolean }[]
+  >([]);
+
+  if (shuffledQuestions.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
@@ -147,7 +160,6 @@ export default function QuizPage() {
 
   const handleNext = () => {
     if (isLastQuestion) {
-      // answersには既にhandleConfirmで最後の回答が追加されているのでそのまま使う
       const correctCount = answers.filter((a) => a.isCorrect).length;
 
       sessionStorage.setItem(

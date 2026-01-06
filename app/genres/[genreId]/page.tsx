@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { getGenreById } from "@/data/genres";
 import { getTextbookByGenreId } from "@/data/textbooks";
 import { getGenreProgress, resetGenreProgress } from "@/lib/storage";
+import { QuestionStatusList } from "@/components/QuestionStatusList";
 
 export default function GenreDetailPage() {
   const params = useParams();
@@ -42,6 +43,13 @@ export default function GenreDetailPage() {
   const progressPercent = totalQuestions > 0
     ? Math.round((progress.correct / totalQuestions) * 100)
     : 0;
+
+  // 間違えた問題と未回答の問題を計算
+  const wrongCount = Object.values(progress.answeredQuestions).filter(
+    (isCorrect) => !isCorrect
+  ).length;
+  const answeredCount = Object.keys(progress.answeredQuestions).length;
+  const unansweredCount = totalQuestions - answeredCount;
 
   const handleReset = () => {
     if (confirm("このジャンルの進捗をリセットしますか？")) {
@@ -94,12 +102,39 @@ export default function GenreDetailPage() {
             >
               クイズを始める
             </Link>
-            <Link
-              href={`/genres/${genreId}/quiz?mode=retry`}
-              className="flex-1 rounded-lg border border-zinc-300 px-6 py-3 text-center font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              間違えた問題のみ
-            </Link>
+            {mounted && unansweredCount > 0 ? (
+              <Link
+                href={`/genres/${genreId}/quiz?mode=unanswered`}
+                className="flex-1 rounded-lg border border-amber-500 px-6 py-3 text-center font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:border-amber-500 dark:text-amber-400 dark:hover:bg-amber-950"
+              >
+                未回答のみ ({unansweredCount}問)
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="flex-1 cursor-not-allowed rounded-lg border border-zinc-200 px-6 py-3 text-center font-medium text-zinc-400 dark:border-zinc-700 dark:text-zinc-600"
+              >
+                未回答のみ (0問)
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3">
+            {mounted && wrongCount > 0 ? (
+              <Link
+                href={`/genres/${genreId}/quiz?mode=retry`}
+                className="block w-full rounded-lg border border-red-300 px-6 py-3 text-center font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
+              >
+                間違えた問題のみ ({wrongCount}問)
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="w-full cursor-not-allowed rounded-lg border border-zinc-200 px-6 py-3 text-center font-medium text-zinc-400 dark:border-zinc-700 dark:text-zinc-600"
+              >
+                間違えた問題のみ (0問)
+              </button>
+            )}
           </div>
 
           {textbook && (
@@ -133,6 +168,18 @@ export default function GenreDetailPage() {
             <li>• 進捗は自動で保存されます</li>
           </ul>
         </div>
+
+        {mounted && (
+          <div className="mt-8 rounded-xl bg-white p-6 shadow-sm dark:bg-zinc-900">
+            <h2 className="mb-4 font-semibold text-zinc-900 dark:text-zinc-100">
+              問題一覧
+            </h2>
+            <QuestionStatusList
+              questions={genre.questions}
+              answeredQuestions={progress.answeredQuestions}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

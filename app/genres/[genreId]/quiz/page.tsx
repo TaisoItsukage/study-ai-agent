@@ -47,6 +47,7 @@ function createInitialQuiz(
   let selectedQuestions: Question[];
 
   if (mode === "retry") {
+    // 間違えた問題のみモード
     const progress = getGenreProgress(genreId);
     const wrongQuestionIds = Object.entries(progress.answeredQuestions)
       .filter(([, isCorrect]) => !isCorrect)
@@ -56,12 +57,21 @@ function createInitialQuiz(
       wrongQuestionIds.includes(q.id)
     );
 
-    if (wrongQuestions.length === 0) {
-      selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
-    } else {
-      const shuffled = [...wrongQuestions].sort(() => Math.random() - 0.5);
-      selectedQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
-    }
+    // 間違えた問題がある分だけ出題（最大10問）
+    const shuffled = [...wrongQuestions].sort(() => Math.random() - 0.5);
+    selectedQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
+  } else if (mode === "unanswered") {
+    // 未回答の問題のみモード
+    const progress = getGenreProgress(genreId);
+    const answeredQuestionIds = Object.keys(progress.answeredQuestions);
+
+    const unansweredQuestions = genre.questions.filter(
+      (q) => !answeredQuestionIds.includes(q.id)
+    );
+
+    // 未回答の問題がある分だけ出題（最大10問）
+    const shuffled = [...unansweredQuestions].sort(() => Math.random() - 0.5);
+    selectedQuestions = shuffled.slice(0, QUESTIONS_PER_SESSION);
   } else {
     selectedQuestions = getRandomQuestions(genre, QUESTIONS_PER_SESSION);
   }
@@ -128,11 +138,26 @@ function QuizContent({
   >([]);
 
   if (shuffledQuestions.length === 0) {
+    const message =
+      mode === "retry"
+        ? "間違えた問題がありません"
+        : mode === "unanswered"
+          ? "未回答の問題がありません"
+          : "クイズを準備中...";
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="text-center">
-          <div className="mb-4 text-4xl">🎯</div>
-          <p className="text-zinc-600 dark:text-zinc-400">クイズを準備中...</p>
+          <div className="mb-4 text-4xl">{mode ? "✅" : "🎯"}</div>
+          <p className="mb-4 text-zinc-600 dark:text-zinc-400">{message}</p>
+          {mode && (
+            <Link
+              href={`/genres/${genreId}`}
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
+              ← ジャンルに戻る
+            </Link>
+          )}
         </div>
       </div>
     );
